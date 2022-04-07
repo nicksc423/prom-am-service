@@ -1,0 +1,43 @@
+stages:
+    - deploy
+
+.deploy-base:
+  stage: deploy
+  script:
+    - envsubst < prometheus-values.yaml > prometheus.yaml
+    - helm repo add base https://charts.helm.sh/stable/
+    - helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+    - helm repo update
+    # ensure that monitoring NS exists
+    - kubectl create ns monitoring > /dev/null 2>&1 || true
+    # ensure that NS is labelled appropriately
+    - kubectl label namespace monitoring name=monitoring --overwrite
+    # Install a fairly vanilla Prometheus instance for local metrics monitoring within the cluster.
+    - |
+        helm upgrade --install prometheus prometheus-community/prometheus \
+          --version 11.12.1 \
+          --namespace monitoring \
+          -f ./prometheus.yaml \
+          --reuse-values
+  when: manual
+
+Deploy Dev:
+    extends: .deploy-base
+    tags:
+      - shell
+    environment:
+        name: development
+
+Deploy Staging:
+    extends: .deploy-base
+    tags:
+      - shell
+    environment:
+        name: staging
+
+Deploy Prod:
+    extends: .deploy-base
+    tags:
+      - shell
+    environment:
+        name: prod
